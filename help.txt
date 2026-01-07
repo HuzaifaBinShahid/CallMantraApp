@@ -1,0 +1,15 @@
+make changes in "build/installer.nsh" for registry changes.
+
+To create the exe for publishing the callmantra code. 
+-->npm run dist
+
+
+
+
+
+https://stackoverflow.com/questions/53530726/how-to-launch-my-electron-app-from-a-website
+
+
+https://stackoverflow.com/questions/43912119/open-app-and-pass-parameters-with-deep-linking-using-electron-macos
+
+https://github.com/oikonomopo/electron-deep-linking-mac-win/blob/master/main.js

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <script type="text/javascript">
+        window.addEventListener("online", (event) => {
+            //console.log('just came online');
+            try {
+                window.api.send("toMain", "ONLINE-WEB");
+            }
+            catch (e) {
+            }
+        });
+
+        window.addEventListener("offline", (event) => {
+            try {
+                window.api.send("toMain", "OFFLINE-WEB");
+            } catch (e) { }
+        });
+    </script>
+</head>
+<style>
+    body,
+    html {
+        height: 100%;
+        margin: 0;
+    }
+
+    .bgimg {
+        background-image: url('./images/integrate_bg.png');
+        height: 95%;
+        background-position: center;
+        background-size: cover;
+        position: center;
+        color: green;
+        font-family: "Courier New", Courier, monospace;
+        font-size: 25px;
+    }
+
+    .topleft {
+        position: absolute;
+        top: 0;
+        left: 16px;
+    }
+
+    .bottomleft {
+        position: absolute;
+        bottom: 0;
+        left: 16px;
+    }
+
+    .middle {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+    }
+
+    #hidetext {
+        color: white;
+        font-family: "Courier New", Courier, monospace;
+        font-size: 2px;
+    }
+
+    hr {
+        margin: auto;
+        width: 60%;
+    }
+</style>
+
+
+<body>
+    <div class="topleft">
+        <p><img src="./images/logo.svg" /></p>
+    </div>
+    <div class="bgimg">
+        <div class="middle">
+            <h1> Welcome to CallMantra.</h1>
+            <hr>
+        </div>
+    </div>
+    <!-- All of the Node.js APIs are available in this renderer process. -->
+    <script>//document.write(process.versions.node)
+        document.write('<p id="hidetext">Node.js:' + process.versions.node + '</p>')
+    </script>
+    <script>document.write('<p id="hidetext">Chromium:' + process.versions.chrome + '</p>')</script>
+
+    <script>document.write('<p id="hidetext">and Electron' + process.versions.electron + '</p>')</script>
+    <script>
+        // You can also require other files to run in this process
+        require('./renderer.js')
+    </script>
+
+    <script>
+        // Listen for messages from the web application
+        window.addEventListener('message', function(event) {
+            // Only accept messages from the dialer URL
+            if (event.origin === 'https://dialer.callmantra.co') {
+                if (event.data && event.data.type === 'LOGOUT') {
+                    // Send logout message to main process
+                    try {
+                        window.api.send("toMain", "LOGOUT");
+                    } catch (e) {
+                        console.error('Error sending logout message:', e);
+                    }
+                } else if (event.data && event.data.type === 'LOGIN_SUCCESS') {
+                    // Send login success message to main process
+                    try {
+                        window.api.send("toMain", "LOGIN_SUCCESS");
+                    } catch (e) {
+                        console.error('Error sending login success message:', e);
+                    }
+                }
+            }
+        });
+    </script>
+
+</body>
+
+</html>

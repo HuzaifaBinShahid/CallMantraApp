@@ -1,0 +1,97 @@
+{
+  "name": "CallMantra",
+  "productName": "CallMantra",
+  "version": "1.0.5",
+  "description": "CallMantra, Cloud phone system for staffing agencies",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist-all": "electron-builder -mw"
+  },
+  "build": {
+    "appId": "com.coanetwork.callmantra",
+    "mac": {
+      "target": "dmg",
+      "icon": "logo256.ico",
+      "appId": "CallMantra"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "logo256.ico",
+      "appId": "CallMantra"
+    },
+    "nsis": {
+      "installerIcon": "./logo256.ico",
+      "uninstallerIcon": "./logo256.ico",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": false,
+      "runAfterFinish": true,
+      "warningsAsErrors": false,
+      "include": "build/installer.nsh"
+    }
+  },
+  "protocols": {
+    "name": "CallMantra.protocol",
+    "schemes": [
+      "CallMantra"
+    ]
+  },
+  "keywords": [],
+  "author": {
+    "name": "COANetwork Inc.",
+    "email": "customercare@coanetwork.com"
+  },
+  "license": "MIT",
+  "config": {
+    "forge": {
+      "packagerConfig": {},
+      "makers": [
+        {
+          "name": "@electron-forge/maker-squirrel",
+          "config": {
+            "name": "CallMantra"
+          }
+        },
+        {
+          "name": "@electron-forge/maker-zip",
+          "platforms": [
+            "darwin"
+          ]
+        },
+        {
+          "name": "@electron-forge/maker-deb",
+          "config": {}
+        },
+        {
+          "name": "@electron-forge/maker-rpm",
+          "config": {}
+        }
+      ]
+    }
+  },
+  "dependencies": {
+    "@cuj1559/electron-push-receiver": "^3.1.8",
+    "auto-launch": "^5.0.6",
+    "electron-notifications": "^1.0.0",
+    "electron-squirrel-startup": "^1.0.0",
+    "electron-store": "^8.1.0",
+    "internet-available": "^1.0.0",
+    "node": "^20.2.0",
+    "node-notifier": "^10.0.1",
+    "rage-edit": "^1.2.0"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "^6.1.1",
+    "@electron-forge/maker-deb": "^6.1.1",
+    "@electron-forge/maker-rpm": "^6.1.1",
+    "@electron-forge/maker-squirrel": "^6.1.1",
+    "@electron-forge/maker-zip": "^6.1.1",
+    "check-internet-connected": "^2.0.6",
+    "electron": "^25.1.0",
+    "electron-builder": "^24.13.3",
+    "electron-reload": "^1.5.0",
+    "electron-reloader": "^1.2.3"
+  }
+}

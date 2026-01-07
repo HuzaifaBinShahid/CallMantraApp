@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="fonts/fonts.css">
+    <style>
+        body {
+            font-family: 'CircularStdBook';
+            padding: 0px;
+            margin: 0px;
+        }
+
+        .maincontainer {
+            max-width: 350px;
+            height: 526px;
+            margin: auto;
+            position: relative;
+            box-shadow: 0px 0px 5px 4px #f1f1f1;
+        }
+
+        .CM-Logoscreen {
+            display: flex;
+            align-items: center;
+            flex-direction: column;
+            padding: 190px 0px;
+        }
+
+        .CM-Logosec {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 11.019px;
+        }
+
+        .CMText {
+            color: #1F1F1F;
+            text-align: center;
+            font-size: 23.415px;
+            font-family: 'CircularStdMedium';
+            font-style: normal;
+            font-weight: 700;
+            line-height: 155%;
+        }
+
+        .CM-version {
+            color: rgba(24, 24, 24, 0.66);
+            text-align: center;
+            font-size: 14px;
+            font-style: normal;
+            font-weight: 450;
+            line-height: 155%;
+            position: absolute;
+            bottom: 34px;
+        }
+    </style>
+    <script type="text/javascript">
+        window.addEventListener("online", (event) => {
+            //console.log('just came online');
+            try {
+                window.api.send("toMain", "ONLINE-WEB");
+            }
+            catch (e) {
+            }
+        });
+
+        window.addEventListener("offline", (event) => {
+            try {
+                window.api.send("toMain", "OFFLINE-WEB");
+            } catch (e) { }
+        });
+    </script>
+</head>
+
+<body>
+    <div class="maincontainer">
+        <div class="CM-Logoscreen">
+            <div class="CM-Logosec">
+                <img src="images/CallMantralogo.svg">
+                <div class="CMText">CallMantra</div>
+            </div>
+            <div class="CM-version">Version 1.0.5</div>
+        </div>
+    </div>
+    <!-- All of the Node.js APIs are available in this renderer process. -->
+    <script>//document.write(process.versions.node)
+        document.write('<p id="hidetext">Node.js:' + process.versions.node + '</p>')
+    </script>
+    <script>document.write('<p id="hidetext">Chromium:' + process.versions.chrome + '</p>')</script>
+    <script>document.write('<p id="hidetext">and Electron' + process.versions.electron + '</p>')</script>
+    <script>
+        // You can also require other files to run in this process
+        require('./renderer.js')
+    </script>
+</body>
+
+</html>

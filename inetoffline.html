@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="fonts/fonts.css">
+    <style>
+        body {
+            font-family: 'CircularStdBook';
+            padding: 0px;
+            margin: 0px;
+        }
+
+        .maincontainer {
+            max-width: 350px;
+            height: 536px;
+            margin: auto;
+            position: relative;
+            box-shadow: 0px 0px 5px 4px #f1f1f1;
+        }
+
+        #SignInContainer {
+            padding: 127px 0px;
+        }
+
+        .CM-innerbody {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 32px;
+        }
+
+        .CM-contentbody {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .CM-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            width: 254px;
+        }
+
+        .CM-Nointernet-hdng {
+            color: #181818;
+            text-align: center;
+            font-size: 17px;
+            font-family: 'CircularStdMedium';
+            font-style: normal;
+            font-weight: 500;
+            line-height: 155%;
+        }
+
+        .CM-Nointernet-text {
+            color: rgba(24, 24, 24, 0.66);
+            text-align: center;
+            font-size: 14px;
+            font-style: normal;
+            font-weight: 450;
+            line-height: 155%;
+        }
+
+        .CM-refreshbtn {
+            color: #FFFFFF;
+            font-size: 14px;
+            font-family: 'CircularStdMedium';
+            font-style: normal;
+            font-weight: 500;
+            line-height: 20px;
+            padding: 8px 12px;
+            border-radius: 5px;
+            border: none;
+            background: #17B978;
+            box-shadow: 0px 1px 2px 0px rgba(16, 24, 40, 0.04);
+            cursor: pointer;
+        }
+
+        .CM-refreshbtn:focus {
+            box-shadow: none;
+        }
+
+        .CM-onlinebox {
+            display: flex;
+            padding: 8px;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--success-700, #2D8A39);
+        }
+
+        .CM-wifibox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .Online-text {
+            color: var(--base-white, #FFF);
+            font-size: 13px;
+            font-style: normal;
+            font-weight: 450;
+            line-height: 18px;
+            letter-spacing: -0.1px;
+        }
+
+        .close-line-icon {
+            cursor: pointer;
+        }
+
+        .Close-icon {
+            display: flex;
+        }
+    </style>
+    <script type="text/javascript">
+        window.onfocus = function () {
+            retryOnline();
+        }
+
+        window.addEventListener("online", (event) => {
+            //console.log('just came online');
+            document.getElementById("SignInContainer").style.display = "none";
+            document.getElementById("onlineToster").style.display = "flex";
+            setTimeout(function () {
+                document.getElementById("onlineToster").style.display = "none";
+                try {
+                    window.api.send("toMain", "ONLINE-WEB");
+                }
+                catch (e) { }
+            }, 5000);
+        });
+
+        window.addEventListener("offline", (event) => {
+            try {
+                window.api.send("toMain", "OFFLINE-WEB");
+            } catch (e) { }
+        });
+
+        function retryOnline() {
+            window.api.send("toMain", "ONLINE-WEB");
+        }
+    </script>
+</head>
+
+<body>
+    <div class="maincontainer">
+        <div class="CM-onlinebox" id="onlineToster" style="display: none">
+            <div class="CM-wifibox">
+                <img src="images/bx-wifi.svg">
+                <div class="Online-text">You’re back online</div>
+            </div>
+            <div class="Close-icon">
+                <img class="close-line-icon" src="images/close-line.svg" id="ClickClose">
+            </div>
+        </div>
+        <div id="SignInContainer">
+            <div class="CM-innerbody">
+                <div class="CM-contentbody">
+                    <img src="images/NoConnection.svg">
+                    <div class="CM-content">
+                        <div class="CM-Nointernet-hdng">No internet connection</div>
+                        <div class="CM-Nointernet-text">Looks like you’re offline. check your internet connection and
+                            try again</div>
+                    </div>
+                </div>
+                <div class="CM-buttonsection">
+                    <button class="CM-refreshbtn" onclick="retryOnline();">Refresh</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.getElementById("ClickClose").addEventListener("click", myFunction);
+        function myFunction() {
+            document.getElementById("onlineToster").style.display = "none";
+        }
+    </script>
+</body>
+
+</html>

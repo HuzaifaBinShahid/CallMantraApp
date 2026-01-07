@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FCM Notification Tester</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            border: none;
+            border-radius: 3px;
+            background: #007bff;
+            color: white;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        .info {
+            background: #e7f3ff;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>FCM Notification Tester</h1>
+    
+    <div class="info">
+        <strong>Instructions:</strong><br>
+        1. Open this file in the Electron app (File → Open or drag into window)<br>
+        2. Or use the console commands below<br>
+        3. Click buttons to test different notification types
+    </div>
+
+    <div class="test-section">
+        <h3>Quick Test Buttons</h3>
+        <button onclick="testNotification('Test Notification', 'This is a test notification', 'default')">
+            Test Default Notification
+        </button>
+        <button onclick="testNotification('Missed Call', 'You have a missed call from +1234567890', 'missed')">
+            Test Missed Call
+        </button>
+        <button onclick="testNotification('Voice Message', 'You have a new voice message', 'voice')">
+            Test Voice Message
+        </button>
+        <button onclick="testNotification('Text Message', 'You have a new text message', 'text')">
+            Test Text Message
+        </button>
+    </div>
+
+    <div class="test-section">
+        <h3>Custom Notification</h3>
+        <input type="text" id="customTitle" placeholder="Notification Title" value="Custom Test">
+        <textarea id="customBody" placeholder="Notification Body" rows="3">This is a custom test notification</textarea>
+        <select id="customType">
+            <option value="default">Default</option>
+            <option value="missed">Missed Call</option>
+            <option value="voice">Voice Message</option>
+            <option value="text">Text Message</option>
+        </select>
+        <button onclick="testCustomNotification()">Send Custom Notification</button>
+    </div>
+
+    <div class="test-section">
+        <h3>Console Commands</h3>
+        <p>You can also test from the DevTools console:</p>
+        <code>
+            testFCMNotification('Test Title', 'Test Body', 'missed')<br>
+            testFCMNotification('Test Title', 'Test Body', 'voice')<br>
+            testFCMNotification('Test Title', 'Test Body', 'text')<br>
+            testFCMNotification('Test Title', 'Test Body')
+        </code>
+    </div>
+
+    <script>
+        function testNotification(title, body, type) {
+            if (window.testFCMNotification) {
+                window.testFCMNotification(title, body, type);
+            } else if (window.api && window.api.send) {
+                window.api.send('test-notification', title, body, type);
+            } else {
+                alert('Notification test function not available. Make sure you are in the Electron app context.');
+            }
+        }
+
+        function testCustomNotification() {
+            const title = document.getElementById('customTitle').value;
+            const body = document.getElementById('customBody').value;
+            const type = document.getElementById('customType').value;
+            testNotification(title, body, type === 'default' ? null : type);
+        }
+
+        console.log('FCM Notification Tester loaded. Use testFCMNotification() function or click buttons.');
+    </script>
+</body>
+</html>
+
