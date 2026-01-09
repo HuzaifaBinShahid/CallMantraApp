@@ -132,13 +132,15 @@ function startFCMWithRetry() {
   }
 }
 
+// Restart FCM service WITHOUT clearing credentials
+// This reuses existing token and credentials, just reconnects the socket
 function restartFCM() {
-  console.log('Restarting FCM service...');
+  console.log('🔄 Restarting FCM service (reusing credentials, reconnecting socket)...');
+  console.log('✅ This will NOT clear credentials - token will be reused');
 
   if (fcmStartedOnce) {
     ipcRenderer.send('stop-fcm-service');
   }
-
 
   fcmInitRetryCount = 0;
 
@@ -155,6 +157,9 @@ function restartFCM() {
   }, fcmStartedOnce ? 3000 : 2000);
 }
 
+// Force restart FCM service when connection is dead
+// This reuses existing credentials and token - just reconnects the socket
+// This is the CORRECT way to recover from dead connections
 function forceRestartFCM() {
   if (fcmRestartInProgress) {
     console.log('FCM restart already in progress, skipping...');
@@ -167,7 +172,13 @@ function forceRestartFCM() {
   }
 
   fcmRestartInProgress = true;
-  console.log('Force restarting FCM service...');
+  console.log('');
+  console.log('🔄🔄🔄 FORCE RESTARTING FCM SERVICE (Dead Connection Recovery) 🔄🔄🔄');
+  console.log('✅ This will NOT clear credentials - existing token will be reused');
+  console.log('✅ This will reconnect the WebSocket using existing Installation ID');
+  console.log('✅ This is the CORRECT recovery method (not token regeneration)');
+  console.log('');
+  
   fcmStartedOnce = false;
   fcmConnectionHealthy = false;
   consecutiveSocketErrors = 0;
@@ -176,15 +187,15 @@ function forceRestartFCM() {
   
   setTimeout(() => {
     ipcRenderer.send('stop-fcm-service');
-  setTimeout(() => {
-
-      console.log('Starting FCM service after force restart...');
-    ipcRenderer.send(START_NOTIFICATION_SERVICE, APP_ID, PROJECT_ID, API_KEY, vapidKey);
+    setTimeout(() => {
+      console.log('🔄 Starting FCM service after force restart (reusing credentials)...');
+      ipcRenderer.send(START_NOTIFICATION_SERVICE, APP_ID, PROJECT_ID, API_KEY, vapidKey);
 
       fcmStartedOnce = true;
       setTimeout(() => {
         fcmRestartInProgress = false;
-        console.log('FCM restart completed. New token should be sent to backend.');
+        console.log('✅ FCM restart completed. Same token reused, socket reconnected.');
+        console.log('✅ If token is valid, notifications should work now.');
       }, 8000);
     }, 3000);
   }, 1000);
@@ -234,31 +245,43 @@ function startFCMHealthCheck() {
     console.log('Network Online:', navigator.onLine);
     console.log('Restart In Progress:', fcmRestartInProgress);
     
-    if (minutesSinceLastNotification > 2 && fcmConnectionHealthy && minutesSinceFCMStart > 2) {
-      console.log('⚠️ WARNING: No notifications received for', minutesSinceLastNotification, 'minutes');
-      console.log('⚠️ FCM shows as "healthy" but might be DEAD silently!');
-      console.log('⚠️ PROOF: Frontend token is:', fcmCurrentToken || window.EDeviceID || 'NOT SET');
-      console.log('⚠️ PROOF: If backend sent notifications, they did NOT arrive at frontend');
-      console.log('⚠️ PROOF: Check console for "=== FCM NOTIFICATION EVENT RECEIVED ===" - it should appear if notifications arrive');
-      console.log('⚠️ PROOF: If that log does NOT appear, notifications are NOT reaching frontend');
-      console.log('⚠️ Possible causes:');
-      console.log('   1. Backend using old/invalid token (use window.compareTokenWithBackend("token") to check)');
-      console.log('   2. FCM connection dead (but health check shows healthy) - MOST LIKELY');
-      console.log('   3. Backend not sending notifications');
-      console.log('⚠️ Check backend logs to verify which token is being used');
-      console.log('⚠️ If backend is using correct token, FCM connection is likely DEAD');
-      console.log('⚠️ Recommendation: Force restart FCM to verify connection');
-      
-      if (minutesSinceLastNotification >= 5 && !fcmRestartInProgress) {
-        console.log('⚠️⚠️⚠️ AUTOMATIC FCM RESTART TRIGGERED ⚠️⚠️⚠️');
-        console.log('⚠️ No notifications received for', minutesSinceLastNotification, 'minutes');
-        console.log('⚠️ FCM connection appears dead. Restarting now...');
-        forceRestartFCM();
+    // ✅ CORRECT Health Check Logic (Based on Senior Feedback):
+    // =========================================================
+    // Health signals: Socket connected, Token present, No socket errors, Last activity advancing
+    // ❌ NOT: "Did I receive a notification?" - Notifications are event-driven, not heartbeat-driven
+    //
+    // FCM does NOT send keep-alives as notifications
+    // Silence ≠ failure
+    // Only restart on ACTUAL socket errors, not lack of notifications
+    
+    // Log informational message about notifications (not an error)
+    if (minutesSinceLastNotification > 0 && fcmConnectionHealthy) {
+      if (minutesSinceLastNotification <= 5) {
+        // Normal - just informational
+        console.log('ℹ️ INFO: No notifications received for', minutesSinceLastNotification, 'minute(s)');
+        console.log('ℹ️ This is NORMAL - notifications are event-driven (only arrive when backend sends them)');
+        console.log('ℹ️ FCM does NOT send keep-alive notifications');
+        console.log('ℹ️ Connection is healthy:', fcmConnectionHealthy, '| Token present:', !!fcmCurrentToken, '| Socket errors:', consecutiveSocketErrors);
+      } else {
+        // Longer silence - still not necessarily an error, but worth noting
+        console.log('ℹ️ INFO: No notifications received for', minutesSinceLastNotification, 'minutes');
+        console.log('ℹ️ This may be normal if backend is not sending notifications');
+        console.log('ℹ️ To verify connection is alive, send a test notification from backend');
+        console.log('ℹ️ Current status - Connection healthy:', fcmConnectionHealthy, '| Token:', fcmCurrentToken ? 'Present' : 'Missing', '| Socket errors:', consecutiveSocketErrors);
       }
     }
     
-    if (!fcmConnectionHealthy && consecutiveSocketErrors >= 3 && timeSinceLastNotification > 300000) {
-      console.log('FCM connection appears unhealthy, attempting restart...');
+    // ✅ Only restart on ACTUAL socket errors, not lack of notifications
+    // Restart if: Connection marked unhealthy AND multiple socket errors
+    if (!fcmConnectionHealthy && consecutiveSocketErrors >= 3) {
+      console.log('');
+      console.log('⚠️⚠️⚠️ FCM CONNECTION UNHEALTHY - ACTUAL SOCKET ERRORS DETECTED ⚠️⚠️⚠️');
+      console.log('⚠️ Consecutive socket errors:', consecutiveSocketErrors);
+      console.log('⚠️ Connection marked as unhealthy');
+      console.log('⚠️ Restarting FCM service to recover...');
+      console.log('✅ This will reuse existing token and reconnect socket (CORRECT approach)');
+      console.log('✅ This will NOT clear credentials or regenerate token');
+      console.log('');
       if (!fcmRestartInProgress) {
         forceRestartFCM();
       }
@@ -273,6 +296,27 @@ ipcRenderer.on(NOTIFICATION_SERVICE_STARTED, (_, token) => {
   console.log('Token:', token);
   console.log('Token length:', token ? token.length : 0);
   
+  // CRITICAL: If token is undefined/null/empty, token generation FAILED
+  // Do NOT process it, do NOT mark as healthy, do NOT dispatch to web app
+  // This happens when Firebase installations endpoint is blocked/timing out
+  if (!token || token.length === 0) {
+    console.log('');
+    console.log('❌❌❌ CRITICAL ERROR: TOKEN IS UNDEFINED/NULL/EMPTY ❌❌❌');
+    console.log('❌ FCM service started but NO valid token was generated!');
+    console.log('❌ This means Firebase installations endpoint timed out or is blocked');
+    console.log('❌ Token generation failed - cannot establish FCM connection');
+    console.log('❌ NOT marking connection as healthy');
+    console.log('❌ NOT dispatching token to web app (would cause crash)');
+    console.log('❌ Will retry automatically...');
+    console.log('');
+    
+    // Don't mark as healthy, don't set token, don't dispatch event
+    // Keep retrying - error handler will retry
+    fcmConnectionHealthy = false;
+    return; // Exit early - don't process undefined token
+  }
+  
+  // Token is valid - process it normally
   const tokenChanged = fcmCurrentToken && fcmCurrentToken !== token;
   if (tokenChanged) {
     fcmPreviousToken = fcmCurrentToken;
@@ -281,11 +325,17 @@ ipcRenderer.on(NOTIFICATION_SERVICE_STARTED, (_, token) => {
     console.log('Previous token:', fcmPreviousToken);
     console.log('New token:', token);
     console.log('Token change count:', fcmTokenChangeCount);
-    console.log('WARNING: Backend must update to new token or notifications will fail!');
+    console.log('⚠️ WARNING: Token changed - backend must update to new token or notifications will fail!');
+    console.log('⚠️ NOTE: Token changes are RARE - usually only when Firebase invalidates old token');
   } else if (!fcmCurrentToken) {
-    console.log('Initial token set');
+    console.log('✅ Initial token set (first time FCM started)');
   } else {
-    console.log('Token unchanged (same as before)');
+    console.log('✅✅✅ Token unchanged (same token reused - this is CORRECT and EXPECTED) ✅✅✅');
+    console.log('✅ FCM tokens are STABLE and designed to persist across app restarts');
+    console.log('✅ FCM reused existing credentials and token - socket reconnected');
+    console.log('✅ This is the CORRECT behavior - tokens are device-scoped and persistent');
+    console.log('✅ Token only changes if: credentials deleted, Firebase rotates it, or app identity changes');
+    console.log('✅ Reusing same token = sign of correctness and stability (not a bug!)');
   }
   
   fcmCurrentToken = token;
@@ -335,53 +385,65 @@ ipcRenderer.on(NOTIFICATION_SERVICE_STARTED, (_, token) => {
     console.log('Connection Healthy:', fcmConnectionHealthy);
     console.log('Notifications received since start:', fcmLastNotificationTime > fcmLastTokenUpdateTime ? 'Yes' : 'No');
     
+    // Health check based on actual connection state, not notification receipt
     if (!fcmConnectionHealthy) {
-      console.log('❌ FCM connection is NOT healthy. Notifications may not arrive.');
+      console.log('❌ FCM connection is NOT healthy. Check socket errors:', consecutiveSocketErrors);
     } else if (fcmLastNotificationTime <= fcmLastTokenUpdateTime) {
-      console.log('⚠️ WARNING: No notifications received yet. This is normal if no notifications were sent.');
-      console.log('⚠️ If backend sent notifications but none arrived, check:');
-      console.log('   1. Backend is using correct token:', fcmCurrentToken);
-      console.log('   2. FCM connection is actually active (might be dead silently)');
-      console.log('   3. Backend notification sending was successful');
+      // No notifications received yet - this is NORMAL and NOT an error
+      console.log('ℹ️ INFO: No notifications received yet. This is NORMAL if backend has not sent any.');
+      console.log('ℹ️ FCM does NOT send keep-alive notifications - silence is expected when backend is idle');
+      console.log('ℹ️ Connection health indicators:');
+      console.log('   - Connection marked healthy:', fcmConnectionHealthy);
+      console.log('   - Token present:', !!fcmCurrentToken);
+      console.log('   - Socket errors:', consecutiveSocketErrors);
+      console.log('   - Network online:', navigator.onLine);
+      console.log('ℹ️ To verify connection is alive, send a test notification from backend');
     } else {
       console.log('✅ FCM is working! Notifications are being received.');
+      console.log('✅ Last notification received:', new Date(fcmLastNotificationTime).toLocaleString());
     }
   }, 10000);
   
-  try {
-    window.EDeviceID = token;
-    console.log('Set EDeviceID directly (token updated)');
-    
-    if (!window.AppVersion) {
-      try {
-    contextBridge.exposeInMainWorld('AppVersion', "1.0.5");
+  // Only set EDeviceID and dispatch event if token is valid
+  // (We already checked above, but double-check for safety)
+  if (token && token.length > 0) {
+    try {
+      window.EDeviceID = token;
+      console.log('Set EDeviceID directly (token updated)');
+      
+      if (!window.AppVersion) {
+        try {
+      contextBridge.exposeInMainWorld('AppVersion', "1.0.5");
 
-      } catch (e) {
-        window.AppVersion = "1.0.5";
-      }
-    }
-    
-    setTimeout(() => {
-      try {
-        const tokenUpdateEvent = new CustomEvent('fcmTokenUpdated', { 
-          detail: { 
-            token: token,
-            previousToken: fcmPreviousToken,
-            tokenChanged: tokenChanged,
-            changeCount: fcmTokenChangeCount
-          } 
-        });
-        window.dispatchEvent(tokenUpdateEvent);
-        console.log('Dispatched fcmTokenUpdated event to web app');
-        if (tokenChanged) {
-          console.log('⚠️ IMPORTANT: Web app must send new token to backend immediately!');
+        } catch (e) {
+          window.AppVersion = "1.0.5";
         }
-      } catch (error) {
-        console.error('Error dispatching token update event:', error);
       }
-    }, 2000);
-  } catch (error) {
-    console.error('Error setting EDeviceID:', error);
+      
+      setTimeout(() => {
+        try {
+          const tokenUpdateEvent = new CustomEvent('fcmTokenUpdated', { 
+            detail: { 
+              token: token,
+              previousToken: fcmPreviousToken,
+              tokenChanged: tokenChanged,
+              changeCount: fcmTokenChangeCount
+            } 
+          });
+          window.dispatchEvent(tokenUpdateEvent);
+          console.log('✅ Dispatched fcmTokenUpdated event to web app with valid token');
+          if (tokenChanged) {
+            console.log('⚠️ IMPORTANT: Web app must send new token to backend immediately!');
+          }
+        } catch (error) {
+          console.error('Error dispatching token update event:', error);
+        }
+      }, 2000);
+    } catch (error) {
+      console.error('Error setting EDeviceID:', error);
+    }
+  } else {
+    console.error('❌ CRITICAL: Attempted to set EDeviceID with invalid token - this should not happen!');
   }
   if (fcmRestartInProgress) {
     setTimeout(() => {
@@ -394,10 +456,23 @@ ipcRenderer.on(NOTIFICATION_SERVICE_STARTED, (_, token) => {
 ipcRenderer.on(NOTIFICATION_SERVICE_RESTARTED, (_, token) => {
   console.log('=== FCM SERVICE RESTARTED ===');
   console.log('Token:', token);
+  
+  // Check if token is valid
+  if (!token || token.length === 0) {
+    console.log('❌❌❌ CRITICAL: FCM service restarted but token is UNDEFINED ❌❌❌');
+    console.log('❌ Token generation failed - cannot use undefined token');
+    console.log('❌ NOT marking connection as healthy');
+    console.log('❌ NOT dispatching token to web app');
+    fcmConnectionHealthy = false;
+    return; // Exit early
+  }
+  
   fcmLastNotificationTime = Date.now();
   fcmConnectionHealthy = true;
   consecutiveSocketErrors = 0;
   lastSocketErrorTime = 0;
+  fcmCurrentToken = token;
+  
   try {
     window.EDeviceID = token;
     console.log('Set EDeviceID directly (service restarted)');
@@ -408,7 +483,7 @@ ipcRenderer.on(NOTIFICATION_SERVICE_RESTARTED, (_, token) => {
           detail: { token: token } 
         });
         window.dispatchEvent(tokenUpdateEvent);
-        console.log('Dispatched fcmTokenUpdated event after restart');
+        console.log('✅ Dispatched fcmTokenUpdated event after restart with valid token');
       } catch (error) {
         console.error('Error dispatching token update event:', error);
       }
@@ -508,8 +583,16 @@ ipcRenderer.on(NOTIFICATION_SERVICE_ERROR, (_, error) => {
 ipcRenderer.on(TOKEN_UPDATED, (_, token) => {
    console.log("FCM Token updated:", token);
 
+   // Check if token is valid
+   if (!token || token.length === 0) {
+     console.log('❌❌❌ CRITICAL: TOKEN_UPDATED event received but token is UNDEFINED ❌❌❌');
+     console.log('❌ Cannot use undefined token - NOT dispatching to web app');
+     return; // Exit early
+   }
+
    try {
      window.EDeviceID = token;
+     fcmCurrentToken = token;
      console.log('Set EDeviceID directly (token updated event)');
      
      setTimeout(() => {
@@ -518,7 +601,7 @@ ipcRenderer.on(TOKEN_UPDATED, (_, token) => {
            detail: { token: token } 
          });
          window.dispatchEvent(tokenUpdateEvent);
-         console.log('Dispatched fcmTokenUpdated event (token updated)');
+         console.log('✅ Dispatched fcmTokenUpdated event (token updated) with valid token');
        } catch (error) {
          console.error('Error dispatching token update event:', error);
        }
@@ -775,8 +858,10 @@ try {
       online: navigator.onLine,
       restartInProgress: fcmRestartInProgress,
       consecutiveErrors: consecutiveSocketErrors,
-      warning: minutesSinceLastNotification > 5 && fcmConnectionHealthy ? 
-        'No notifications received. Check if backend is using current token.' : null
+      // No warning for "no notifications" - this is normal (notifications are event-driven)
+      // Only warn on actual connection issues
+      warning: !fcmConnectionHealthy && consecutiveSocketErrors > 0 ?
+        `Connection unhealthy with ${consecutiveSocketErrors} socket errors` : null
     };
   });
   

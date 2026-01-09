@@ -18,6 +18,51 @@ const loadingEvents = new EventEmitter()
 const appDataPath = app.getPath('appData');
 const AutoLaunch = require('auto-launch');
 
+const FCM_CREDENTIAL_KEYS = ['fcm_credentials', 'persistentIds', 'fcm', 'credentials'];
+
+// Safeguard function to prevent accidental clearing of FCM credentials
+function protectFCMCredentials() {
+  // This function ensures FCM credentials are never accidentally cleared
+  // Override store.delete to prevent clearing FCM keys
+  const originalDelete = store.delete.bind(store);
+  store.delete = function(key) {
+    if (FCM_CREDENTIAL_KEYS.includes(key)) {
+      console.error('');
+      console.error('❌❌❌ BLOCKED: Attempt to delete FCM credential key:', key);
+      console.error('❌ FCM credentials must NEVER be deleted!');
+      console.error('❌ FCM needs these credentials to establish WebSocket connection');
+      console.error('❌ Deleting them would break notifications!');
+      console.error('');
+      return false; // Block the deletion
+    }
+    return originalDelete(key);
+  };
+  
+  // Also protect store.clear() - don't clear FCM credentials
+  const originalClear = store.clear.bind(store);
+  store.clear = function() {
+    console.error('');
+    console.error('❌❌❌ BLOCKED: Attempt to clear all store data');
+    console.error('❌ This would delete FCM credentials!');
+    console.error('❌ FCM credentials are protected and will NOT be cleared');
+    console.error('');
+    
+    // Clear everything EXCEPT FCM credentials
+    const allKeys = Object.keys(store.store);
+    allKeys.forEach(key => {
+      if (!FCM_CREDENTIAL_KEYS.includes(key)) {
+        originalDelete(key);
+      }
+    });
+    console.log('✅ Cleared store data (FCM credentials preserved)');
+  };
+  
+  console.log('✅ FCM credentials safeguard enabled - credentials will NOT be cleared');
+}
+
+// Enable safeguard
+protectFCMCredentials();
+
 let fcmWebContents = null;
 
 // Add logout state tracking
@@ -123,6 +168,57 @@ app.on("ready", ev => {
 
   top.win.setTitle("CallMantra")
   top.win.setVisibleOnAllWorkspaces(true)
+
+  // === FCM CREDENTIALS CHECK - CRITICAL: NEVER CLEAR THESE ===
+  // FCM library automatically uses credentials from electron-store
+  // If credentials exist, FCM will:
+  //   1. Load them automatically
+  //   2. Extract token from credentials
+  //   3. Establish WebSocket connection
+  //   4. Notifications work perfectly!
+  // 
+  // DO NOT CLEAR credentials - let FCM reuse them!
+  console.log('');
+  console.log('═══════════════════════════════════════════════════════════════');
+  console.log('🔍 CHECKING FCM CREDENTIALS IN ELECTRON-STORE');
+  console.log('═══════════════════════════════════════════════════════════════');
+  try {
+    const fcmKeys = ['fcm_credentials', 'persistentIds', 'fcm', 'credentials'];
+    let foundKeys = [];
+    fcmKeys.forEach(key => {
+      if (store.has(key)) {
+        foundKeys.push(key);
+        const value = store.get(key);
+        const valueType = typeof value;
+        const valueLength = valueType === 'string' ? value.length : 
+                          valueType === 'object' ? JSON.stringify(value).length : 0;
+        console.log(`  ✅ Found: ${key} (type: ${valueType}, size: ${valueLength} bytes)`);
+      }
+    });
+    
+    if (foundKeys.length > 0) {
+      console.log('');
+      console.log(`  ✅ Found ${foundKeys.length} FCM credential(s) in electron-store`);
+      console.log('  ✅ FCM library will AUTOMATICALLY load and use these credentials');
+      console.log('  ✅ FCM will extract token from credentials');
+      console.log('  ✅ FCM will establish WebSocket connection using these credentials');
+      console.log('  ✅ Notifications will work with the token from these credentials');
+      console.log('');
+      console.log('  ⚠️ CRITICAL: These credentials will NOT be cleared');
+      console.log('  ⚠️ CRITICAL: FCM needs these to establish WebSocket connection');
+      console.log('  ⚠️ CRITICAL: Clearing them would force new token generation (which fails if endpoint blocked)');
+    } else {
+      console.log('  ⚠️ No FCM credentials found in electron-store');
+      console.log('  ⚠️ FCM will attempt to generate NEW token');
+      console.log('  ⚠️ This requires Firebase installations endpoint to be accessible');
+      console.log('  ⚠️ If endpoint is blocked, token generation will fail');
+    }
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('');
+  } catch (error) {
+    console.error('❌ Error checking FCM credentials:', error);
+    console.log('');
+  }
 
   setupPushReceiver(top.win.webContents);
   fcmWebContents = top.win.webContents;
@@ -597,24 +693,30 @@ app.whenReady().then(() => {
   ipcMain.on('toMain', handleInfromRenderer)
 
 
+  // Stop FCM service (for restart) - does NOT clear credentials
+  // This allows FCM to be restarted while preserving token and Installation ID
   ipcMain.on('stop-fcm-service', () => {
     try {
       if (pushReceiverInternal.resetFCMService) {
         pushReceiverInternal.resetFCMService();
-        console.log('FCM service stopped and reset.');
+        console.log('✅ FCM service stopped (credentials preserved - will be reused on restart)');
       }
     } catch (err) {
       console.error('Failed to stop FCM service:', err);
     }
   });
 
+  // Force restart FCM service (for dead connection recovery) - does NOT clear credentials
+  // This is the CORRECT way to recover from dead connections
+  // Reuses existing token and Installation ID, just reconnects the socket
   ipcMain.on('force-restart-fcm', () => {
     try {
       if (fcmWebContents && !fcmWebContents.isDestroyed()) {
         if (pushReceiverInternal.resetFCMService) {
           pushReceiverInternal.resetFCMService();
         }
-        console.log('FCM service reset in main process.');
+        console.log('✅ FCM service reset in main process (credentials preserved)');
+        console.log('✅ Token and Installation ID will be reused on restart');
       }
     } catch (err) {
       console.error('Failed to reset FCM service:', err);
@@ -663,6 +765,15 @@ app.on("before-quit", ev => {
   top.win.removeAllListeners("close");
   // release windows
   top = null;
+  
+  // ✅ CRITICAL: FCM credentials are NOT cleared on app close
+  // This is the CORRECT behavior:
+  // - FCM tokens are stable and designed to persist
+  // - Credentials will be reused on next startup
+  // - FCM will automatically load credentials and establish WebSocket connection
+  // - Same token is VALID and will work (tokens don't expire on app restart)
+  // - If connection is dead, health check will restart FCM service (not regenerate token)
+  // - Only regenerate token if restart fails AND Firebase endpoints are reachable
 });
 
 // Log both at dev console and at running node console instance
